@@ -1,0 +1,16 @@
+{
+  "name": "what-didi-thinks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Upload a WhatsApp chat and Didi tells you what's really going on.",
+  "scripts": {
+    "start": "node server.js",
+    "mock": "DIDI_MOCK=1 node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0"
+  }
+}
