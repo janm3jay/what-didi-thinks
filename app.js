@@ -3,6 +3,8 @@ import { computeStats, statsForPrompt } from "./lib/stats.js";
 import { sampleTranscript } from "./lib/sample.js";
 import { extractChatText } from "./lib/unzip.js";
 import { DEMOS } from "./lib/demos.js";
+import { templateReport } from "./lib/template.js";
+import { buildCopyPrompt } from "./lib/prompt.js";
 
 const $ = (id) => document.getElementById(id);
 const COLORS = ["var(--p1)", "var(--p2)", "var(--p3)", "var(--p4)", "var(--p5)"];
@@ -32,6 +34,12 @@ const LOADING_LINES = [
 ];
 
 let chat = null; // { messages, participants }
+
+// "free": template report in the browser plus "Copy for Claude" (static hosting).
+// "api": the server writes the report with Claude (needs /api/report).
+const MODE = document.querySelector('meta[name="didi-mode"]')?.content === "api" ? "api" : "free";
+document.querySelectorAll("[data-mode]").forEach((el) => (el.hidden = el.dataset.mode !== MODE));
+const COPY_BUDGET = 80_000; // keeps the paste small enough for free chat accounts
 
 // ---------- helpers ----------
 
@@ -206,30 +214,51 @@ async function requestReport(payload) {
   return data;
 }
 
-$("go").addEventListener("click", async () => {
-  if (!chat) return;
-  const stats = computeStats(chat.messages);
-  const sample = sampleTranscript(chat.messages);
-  const payload = {
-    transcript: sample.transcript,
-    sampled: sample.sampled,
-    stats: statsForPrompt(stats),
-    me: $("me").value,
-    relationship: document.querySelector('input[name="rel"]:checked')?.value || "other",
-    question: $("question").value.trim(),
-  };
-
+function startLoading() {
   show("step-loading");
   let line = 0;
   $("loading-line").textContent = LOADING_LINES[0];
-  const timer = setInterval(() => {
+  return setInterval(() => {
     line = (line + 1) % LOADING_LINES.length;
     $("loading-line").textContent = LOADING_LINES[line];
-  }, 2800);
+  }, MODE === "free" ? 700 : 2800);
+}
+
+$("go").addEventListener("click", async () => {
+  if (!chat) return;
+  const stats = computeStats(chat.messages);
+  const me = $("me").value;
+  const relationship = document.querySelector('input[name="rel"]:checked')?.value || "other";
+  const question = $("question").value.trim();
+  showError("report-error", "");
+  const timer = startLoading();
 
   try {
-    const { report, mock } = await requestReport(payload);
-    renderReport(report, stats, { mock, me: payload.me });
+    if (MODE === "free") {
+      const copySample = sampleTranscript(chat.messages, COPY_BUDGET);
+      const copyPrompt = buildCopyPrompt({
+        transcript: copySample.transcript,
+        sampled: copySample.sampled,
+        stats: statsForPrompt(stats),
+        me,
+        relationship,
+        question,
+      });
+      const report = templateReport({ stats, messages: chat.messages, me, relationship });
+      await new Promise((r) => setTimeout(r, 1800)); // let the teapot do its thing
+      renderReport(report, stats, { me, copyPrompt });
+    } else {
+      const sample = sampleTranscript(chat.messages);
+      const { report, mock } = await requestReport({
+        transcript: sample.transcript,
+        sampled: sample.sampled,
+        stats: statsForPrompt(stats),
+        me,
+        relationship,
+        question,
+      });
+      renderReport(report, stats, { mock, me });
+    }
     show("step-setup");
   } catch (err) {
     show("step-setup");
@@ -238,6 +267,23 @@ $("go").addEventListener("click", async () => {
     clearInterval(timer);
   }
 });
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
 
 // ---------- report rendering ----------
 
@@ -295,12 +341,11 @@ function monthChart(months) {
   const peak = months.reduce((a, b) => (b.total > a.total ? b : a));
   return `<div class="card"><h3>Messages per month</h3>
     <p class="muted" style="margin:-6px 0 14px">Busiest: <b>${esc(fmtMonth(peak.month))}</b> with ${fmtNum(peak.total)} messages</p>
-    <div class="chart"><svg viewBox="0 0 ${W} ${H + 22}" preserveAspectRatio="none" role="img" aria-label="Messages per month bar chart">
+    <div class="chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Messages per month bar chart">
       <line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="var(--line)" stroke-width="1"/>
       ${bars}
-      <text class="axis" x="0" y="${H + 18}">${esc(fmtMonth(months[0].month))}</text>
-      <text class="axis" x="${W}" y="${H + 18}" text-anchor="end">${esc(fmtMonth(months.at(-1).month))}</text>
-    </svg><div class="tip" hidden></div></div></div>`;
+    </svg><div class="axis"><span>${esc(fmtMonth(months[0].month))}</span><span>${esc(fmtMonth(months.at(-1).month))}</span></div>
+    <div class="tip" hidden></div></div></div>`;
 }
 
 function wireChart(root) {
@@ -321,7 +366,7 @@ function wireChart(root) {
   chart.addEventListener("pointerleave", () => (tip.hidden = true));
 }
 
-function renderReport(report, stats, { mock = false, demo = false, me = "" } = {}) {
+function renderReport(report, stats, { mock = false, demo = false, me = "", copyPrompt = "" } = {}) {
   const people = stats.people || [];
   const names = people.map((p) => p.name);
   const color = colorFor(names);
@@ -403,6 +448,17 @@ function renderReport(report, stats, { mock = false, demo = false, me = "" } = {
 
     ${(report.advice || []).length ? `<div class="card"><h3>Didi's advice</h3><ul class="advice">${report.advice.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}
 
+    ${copyPrompt ? `<div class="card ai-card">
+      <h3>Want Didi to actually read your messages? 🫖</h3>
+      <p class="muted" style="margin-top:0">This report only uses the numbers. For Didi's full read, with real quotes, what changed and honest advice, copy your chat and paste it into Claude. A free account works.</p>
+      <ol class="muted" style="margin:0 0 4px;padding-left:20px"><li>Tap <b>Copy chat for Claude</b></li><li>Open Claude and paste it into a new chat</li><li>Send it, and Didi does the rest</li></ol>
+      <div class="actions">
+        <button class="btn small" id="copy-ai">Copy chat for Claude</button>
+        <a class="btn ghost small" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude ↗</a>
+      </div>
+      <p class="muted" id="copy-ai-status" style="margin-bottom:0" hidden></p>
+    </div>` : ""}
+
     <div class="card share">
       <div class="eyebrow">Didi's one-liner</div>
       <div class="line">“${esc(report.share_line)}”</div>
@@ -418,13 +474,21 @@ function renderReport(report, stats, { mock = false, demo = false, me = "" } = {
   wireChart(root);
   requestAnimationFrame(() => root.querySelectorAll(".bar-fill").forEach((el) => (el.style.width = el.dataset.w)));
 
+  $("copy-ai")?.addEventListener("click", async () => {
+    const ok = await copyText(copyPrompt);
+    $("copy-ai-status").hidden = false;
+    $("copy-ai-status").textContent = ok
+      ? "Copied ✓ Now open Claude, paste it into a new chat and send."
+      : "Couldn't copy automatically. Try again, or use a different browser.";
+    if (ok) $("copy-ai").textContent = "Copied ✓";
+  });
+
   $("copy").addEventListener("click", async () => {
     const text = `“${report.share_line}” — What Didi Thinks\n${location.origin}`;
     try {
       if (navigator.share) await navigator.share({ text });
       else {
-        await navigator.clipboard.writeText(text);
-        $("copy").textContent = "Copied ✓";
+        if (await copyText(text)) $("copy").textContent = "Copied ✓";
       }
     } catch {
       /* share sheet dismissed */

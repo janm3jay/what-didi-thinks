@@ -18,7 +18,7 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8",
   ".webmanifest": "application/manifest+json",
 };
-const PUBLIC = /^\/(index\.html|app\.js|favicon\.svg|lib\/(parse|stats|sample|unzip|demos)\.js|samples\/[\w-]+\.txt)$/;
+const PUBLIC = /^\/(index\.html|app\.js|favicon\.svg|lib\/(parse|stats|sample|unzip|demos|template|prompt)\.js|samples\/[\w-]+\.txt)$/;
 
 function withHelpers(res) {
   res.status = (code) => ((res.statusCode = code), res);

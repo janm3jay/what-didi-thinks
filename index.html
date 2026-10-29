@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- "free": works on any static host (GitHub Pages). "api": needs the /api/report server and an API key. -->
+<meta name="didi-mode" content="free">
 <title>What Didi Thinks | Your chat, honestly read</title>
 <meta name="description" content="Upload a WhatsApp chat and Didi tells you what's really going on: who cares more, what changed, and what she honestly thinks of everyone in it.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -184,9 +186,9 @@
   .timeline .period { font-size: 13px; font-weight: 700; color: var(--pink); }
   .timeline strong { display: block; font-size: 18px; }
   .chart { position: relative; }
-  .chart svg { width: 100%; height: 180px; display: block; overflow: visible; }
+  .chart svg { width: 100%; height: 160px; display: block; overflow: visible; }
   .chart .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 8px; transform: translate(-50%, -110%); white-space: nowrap; }
-  .chart .axis { font-size: 12px; fill: var(--muted); }
+  .chart .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
   .quote { border-left: 4px solid var(--accent); padding: 4px 0 4px 16px; margin: 0 0 18px; }
   .quote q { font-size: 18px; font-weight: 600; display: block; }
   .quote .meta { font-size: 13px; color: var(--muted); margin: 4px 0; }
@@ -253,7 +255,7 @@
         <div class="card step">
           <div class="num">2</div>
           <h3>Upload it here</h3>
-          <p class="muted">Drop in the .txt or .zip. It's read in your browser, and the numbers are worked out on your phone, not on a server.</p>
+          <p class="muted">Drop in the .txt or .zip. It's read in your browser, and the numbers are worked out on your device, not on a server.</p>
         </div>
         <div class="card step">
           <div class="num">3</div>
@@ -292,13 +294,14 @@
             <button class="btn ghost small" id="reset">Use a different chat</button>
           </div>
           <p class="error" id="report-error" hidden></p>
-          <p class="privacy muted">🔒 Didi reads your chat to write the report and doesn't keep it. Long chats are sampled: Didi gets the start, the latest messages and slices from the middle, and the stats cover every message.</p>
+          <p class="privacy muted" data-mode="free">🔒 Your chat never leaves your device. Everything is worked out right here in your browser.</p>
+          <p class="privacy muted" data-mode="api" hidden>🔒 Didi reads your chat to write the report and doesn't keep it. Long chats are sampled: Didi gets the start, the latest messages and slices from the middle, and the stats cover every message.</p>
         </div>
 
         <div class="card loading" id="step-loading" hidden>
           <div class="pot">🫖</div>
           <p id="loading-line">Didi is putting the chai on…</p>
-          <span class="muted">This takes about a minute for long chats.</span>
+          <span class="muted" data-mode="api" hidden>This takes about a minute for long chats.</span>
         </div>
       </div>
     </div>
@@ -311,10 +314,12 @@
   <section class="block">
     <div class="wrap faq">
       <h2 class="section-title">Questions</h2>
-      <details><summary>Is my chat private?</summary><p>Your file is opened in your browser. The stats are worked out on your device. A text sample is sent to the AI to write the report, and it isn't stored or used for anything else.</p></details>
+      <details data-mode="free"><summary>Is my chat private?</summary><p>Yes. Your file is opened in your browser and the report is worked out on your device. Nothing is uploaded anywhere. If you use "Copy chat for Claude", you choose to paste it into Claude yourself.</p></details>
+      <details data-mode="api" hidden><summary>Is my chat private?</summary><p>Your file is opened in your browser. The stats are worked out on your device. A text sample is sent to the AI to write the report, and it isn't stored or used for anything else.</p></details>
+      <details data-mode="free"><summary>How do I get the full AI report?</summary><p>After your quick report, tap "Copy chat for Claude", open claude.ai, paste it into a new chat and send it. Didi reads your actual messages and writes the full report there. A free Claude account works.</p></details>
       <details><summary>Which chats work?</summary><p>WhatsApp exports from Android (.txt) and iPhone (.zip), in any language and date format. Works for one-on-one chats and groups.</p></details>
       <details><summary>Will Didi take my side?</summary><p>No. Didi is fair to everyone in the chat, including the people who aren't you. That's the point.</p></details>
-      <details><summary>What about really long chats?</summary><p>Every message is counted for the stats. For the written report, Didi reads the start, the most recent stretch, and slices from the middle, so she can see how things changed.</p></details>
+      <details><summary>What about really long chats?</summary><p>Every message is counted for the stats. For the AI report, Didi gets the start, the most recent stretch, and slices from the middle, so she can see how things changed.</p></details>
     </div>
   </section>
 
